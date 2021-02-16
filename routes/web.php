@@ -25,5 +25,5 @@ Route::group(['middleware' => ['auth:sanctum', 'verified']], function() {
 
      Route::get('dashboard', Users::class)->name('dashboard');
      Route::resource('users', Users::class);
-     Route::post('users/store', [Users::class, 'store'])->name('createUser');     
+     Route::post('users/store', [Users::class, 'store'])->name('createUser');
 });

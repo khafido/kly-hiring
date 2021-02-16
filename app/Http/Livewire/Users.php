@@ -3,24 +3,29 @@
 namespace App\Http\Livewire;
 
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
 class Users extends Component
 {
-  public $users, $name, $email, $birth, $phone, $gender, $photo;
-  public $isModal = 0;
+  use WithFileUploads;
 
-  public function index()
-  {
-    return redirect('/dashboard');
+  public $users, $name, $email, $birth, $phone, $gender, $photo, $action, $live_photo, $greet;
+  public $isForm, $isGreet;
+  private $default_img = 'default.png';
+  public $file_id;
+
+  public function index(){
+    $this->isGreet = false;
+    $this->resetFields();
   }
 
   public function render()
   {
     $files = Storage::files('users/');
-    $users = array();
+    $list_users = array();
     $user = array();
     foreach ($files as $txtfile) {
       $file = explode(',',Storage::get($txtfile));
@@ -29,99 +34,105 @@ class Users extends Component
       $user['birth'] = $file[2];
       $user['phone'] = $file[3];
       $user['gender'] = $file[4];
-      $user['photo'] = $file[5];
+      $user['photo'] = (isset($file[5])?$file[5]:$this->default_img);
       $user['id'] = $txtfile;
 
-      array_push($users, (object)$user);
+      array_push($list_users, (object)$user);
       $user = array();
     }
-    // dd((object)$users);
-    return view('livewire.users', ['data_users'=>$users]);
+    $this->users = $list_users;
+    return view('livewire.users');
   }
 
   public function create()
   {
-
-    return view('livewire.create');
-    // $this->resetFields();
-    // $this->openModal();
+    $this->isForm = true;
+    $this->live_photo = '';
+    $this->action = 'store';
   }
 
-  public function closeModal()
+  public function store()
   {
-    $this->isModal = false;
-  }
-
-  public function openModal()
-  {
-    $this->isModal = true;
-  }
-
-  public function resetFields()
-  {
-    $this->name = '';
-    $this->email = '';
-    $this->phone_number = '';
-    $this->status = '';
-    $this->member_id = '';
-  }
-
-  public function store(Request $request)
-  {
-    $request->validate([
+    $user = $this->validate([
       'name' => 'required|string|alpha_dash',
       'email' => 'required|email',
       'birth' => 'required|date',
       'phone' => 'required|numeric',
-      'gender' => 'required|numeric',
-      'photo' => 'image|mimes:jpeg,png,jpg,gif,svg|max:2048'
+      'gender' => 'required|alpha',
+      'photo' => 'image|max:2048'
     ]);
 
-    $photo = $request->photo;
-    if (isset($photo)) {
-      $photo_name = 'foto-'.$request->name.'-'.date('dmYHis').'.'.$photo->extension();
-      Storage::putFileAs('public/photo', $photo, $photo_name);
-      // $photo->move(public_path('images/photo'), $image);
+    if (!empty($this->photo)) {
+      $photo_file = $this->photo;
+      $photo_name = 'foto-'.$this->name.'-'.date('dmYHis').'.'.$photo_file->extension();
+      // Storage::putFileAs('public/photo', $photo, $photo_name);
+      if ($this->action=='update') {
+        $del = str_replace('storage', 'public', $this->live_photo);
+        Storage::delete($del);
+      }
+      $this->photo->storeAs('public/photo', $photo_name);
+      $user['photo'] = $photo_name;
     } else {
-      $image = 'default.jpg';
+      if ($this->action=='store') {
+        $user['photo'] = $this->default_img;
+      } else {
+        $user['photo'] = str_replace('storage/photo/', '', $this->live_photo);
+      }
     }
-
-    $user['name'] = $request->name;
-    $user['email'] = $request->email;
-    $user['birth'] = $request->birth;
-    $user['phone'] = $request->phone;
-    $user['gender'] = $request->gender;
-    $user['photo'] = $photo_name;
 
     $data = implode(',',$user);
     try {
-      Storage::put('users/'.$user['name'].'-'.date('dmYHis').'.txt', $data);
-      return redirect('/dashboard')->with('message', 'Submit Data Success');
+      if ($this->action=='store') {
+        Storage::put('users/'.$user['name'].'-'.date('dmYHis').'.txt', $data);
+        session()->flash('message', 'Submit Data Success');
+        $this->greet = "Add";
+      } else {
+        Storage::delete($this->file_id);
+        Storage::put('users/'.$user['name'].'-'.date('dmYHis').'.txt', $data);
+        session()->flash('message', 'Update Data Success');
+        $this->greet = "Update";
+      }
+      $this->resetFields();
     } catch (\Exception $e) {
       dd($e);
     }
-
   }
 
-  //FUNGSI INI UNTUK MENGAMBIL DATA DARI DATABASE BERDASARKAN ID MEMBER
   public function edit($id)
   {
-    $member = Member::find($id); //BUAT QUERY UTK PENGAMBILAN DATA
-    //LALU ASSIGN KE DALAM MASING-MASING PROPERTI DATANYA
-    $this->member_id = $id;
-    $this->name = $member->name;
-    $this->email = $member->email;
-    $this->phone_number = $member->phone_number;
-    $this->status = $member->status;
+    $this->file_id = $id;
+    $this->isForm = true;
+    $this->action = 'update';
 
-    $this->openModal(); //LALU BUKA MODAL
+    $file = explode(',',Storage::get($this->file_id));
+
+    $this->name = $file[0];
+    $this->email = $file[1];
+    $this->birth = $file[2];
+    $this->phone = $file[3];
+    $this->gender = $file[4];
+    $this->live_photo = "storage/photo/".(isset($file[5])?$file[5]:$this->default_img);
   }
 
-  public function delete($id, $photo)
+  public function delete($id,$pic)
   {
-    Storage::delete(["$id", "public/photo/$photo"]);
-    // Storage::delete(["users/$id", "public/foto/$photo"]);
+    if (strcasecmp($pic, $this->default_img)==0) {
+      Storage::delete($id);
+    } else {
+      Storage::delete(["$id", "public/photo/$pic"]);
+    }
     session()->flash('message', 'Delete Data Success');
-    return redirect('/dashboard');
+  }
+
+  public function resetFields()
+  {
+    $this->name = "";
+    $this->email = "";
+    $this->birth = null;
+    $this->phone = "";
+    $this->gender = "";
+    $this->photo = "";
+    $this->file_id = "";
+    $this->isForm = false;    
   }
 }
