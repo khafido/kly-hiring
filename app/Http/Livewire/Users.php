@@ -59,7 +59,7 @@ class Users extends Component
       'birth' => 'required|date',
       'phone' => 'required|numeric',
       'gender' => 'required|alpha',
-      'photo' => 'image|max:2048'
+      'photo' => 'nullable|image|max:2048'
     ]);
 
     if (!empty($this->photo)) {
@@ -84,14 +84,15 @@ class Users extends Component
     try {
       if ($this->action=='store') {
         Storage::put('users/'.$user['name'].'-'.date('dmYHis').'.txt', $data);
-        session()->flash('message', 'Submit Data Success');
+        // session()->flash('message', 'Submit Data Success');
         $this->greet = "Add";
       } else {
         Storage::delete($this->file_id);
-        Storage::put('users/'.$user['name'].'-'.date('dmYHis').'.txt', $data);
-        session()->flash('message', 'Update Data Success');
+        Storage::put($this->file_id, $data);
+        // session()->flash('message', 'Update Data Success');
         $this->greet = "Update";
       }
+      $this->isGreet = true;
       $this->resetFields();
     } catch (\Exception $e) {
       dd($e);
@@ -121,7 +122,9 @@ class Users extends Component
     } else {
       Storage::delete(["$id", "public/photo/$pic"]);
     }
-    session()->flash('message', 'Delete Data Success');
+    // session()->flash('message', 'Delete Data Success');
+    $this->isGreet = true;
+    $this->greet = "Delete";
   }
 
   public function resetFields()
@@ -133,6 +136,6 @@ class Users extends Component
     $this->gender = "";
     $this->photo = "";
     $this->file_id = "";
-    $this->isForm = false;    
+    $this->isForm = false;
   }
 }

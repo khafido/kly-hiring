@@ -7,8 +7,9 @@
             {{ $greet }} Data Success!
           </h1>
           <img src="{{ url('storage/check.png') }}" alt="check" width="200" class="mx-auto">
+          @if($greet!=="Delete")
           <p>Thank you very much for filling out our form.</p>
-          <!-- <a class="underline text-md text-gray-600 hover:text-gray-900" href="{{ route('dashboard') }}"> -->
+          @endif
           <button wire:click="index" class="underline text-md text-gray-600 hover:text-gray-900">
               Back to home page!
           </button>
